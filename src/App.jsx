@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext, useRef } from 'react';
 
-const API = 'http://localhost:3000/api';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 const AuthCtx = createContext(null);
 
 function useApi(tokenRef, setSession) {
@@ -203,8 +203,114 @@ function Login({ onLogin }) {
           </div>
           <button type="submit" disabled={loading}>{loading ? 'Entrando…' : 'Entrar'}</button>
           <div className="login-form-hint">
+            <a href="/forgot-password" onClick={e => { e.preventDefault(); window.location.href = '/forgot-password'; }}>¿Olvidaste tu contraseña?</a>
+            <br />
             ¿Tienes un código de invitación? <a href="/register" onClick={e => { e.preventDefault(); window.location.href = '/register'; }}>Regístrate aquí</a>
           </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- FORGOT PASSWORD ---------- */
+function ForgotPassword() {
+  const [email, setEmail] = useState('');
+  const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError(''); setMsg(''); setLoading(true);
+    try {
+      const res = await fetch(`${API}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error');
+      setMsg(data.message || 'Revisa tu email.');
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="login-wrap">
+      <aside className="login-brand">
+        <div className="login-brand-logo">
+          <div className="login-brand-logo-icon">📦</div>
+          <span>StockFlow</span>
+        </div>
+        <div className="login-brand-hero">
+          <h2>Recupera el acceso a tu cuenta.</h2>
+          <p>Introduce tu email y te enviaremos un enlace para restablecer tu contraseña.</p>
+        </div>
+        <div className="login-brand-footer">© {new Date().getFullYear()} StockFlow · Todos los derechos reservados</div>
+      </aside>
+      <div className="login-form-wrap">
+        <form className="login-form" onSubmit={submit}>
+          <div className="login-form-header">
+            <h1>Recuperar contraseña</h1>
+            <p>Te enviaremos un enlace temporal</p>
+          </div>
+          {error && <div className="alert error">{error}</div>}
+          {msg && <div className="alert ok">{msg}</div>}
+          <div className="field">
+            <label htmlFor="fp-email">Email</label>
+            <input id="fp-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+          </div>
+          <button type="submit" disabled={loading}>{loading ? 'Enviando…' : 'Enviar enlace'}</button>
+          <div className="login-form-hint">
+            <a href="/" onClick={e => { e.preventDefault(); window.location.href = '/'; }}>Volver al login</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- RESET PASSWORD ---------- */
+function ResetPassword() {
+  const [password, setPassword] = useState('');
+  const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const token = new URLSearchParams(window.location.search).get('token') || '';
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError(''); setMsg(''); setLoading(true);
+    try {
+      const res = await fetch(`${API}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error');
+      setMsg('Contraseña actualizada. Ya puedes iniciar sesión.');
+      setTimeout(() => { window.location.href = '/'; }, 2000);
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="login-wrap">
+      <div className="login-form-wrap">
+        <form className="login-form" onSubmit={submit}>
+          <div className="login-form-header">
+            <h1>Nueva contraseña</h1>
+            <p>Introduce tu nueva contraseña</p>
+          </div>
+          {error && <div className="alert error">{error}</div>}
+          {msg && <div className="alert ok">{msg}</div>}
+          <div className="field">
+            <label htmlFor="rp-pass">Nueva contraseña (mín. 8)</label>
+            <input id="rp-pass" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
+          </div>
+          <button type="submit" disabled={loading || !token}>{loading ? 'Guardando…' : 'Cambiar contraseña'}</button>
         </form>
       </div>
     </div>
@@ -256,7 +362,7 @@ function AdminPanel() {
       <div className="page-header">
         <div>
           <h2>Panel de administración</h2>
-          <div className="page-header-sub">Genera códigos de invitación para nuevos usuarios. Tú no eliges su contraseña: la eligen ellos al registrarse.</div>
+          <div className="page-header-sub">Genera códigos de invitación para nuevos usuarios</div>
         </div>
       </div>
       {error && <div className="alert error">{error}</div>}
@@ -273,9 +379,6 @@ function AdminPanel() {
           </div>
           <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', margin: 0 }}>
             Enlace: <code>{window.location.origin}/register?code={lastInvite.code}</code>
-          </p>
-          <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-            Comparte este enlace con el usuario. Al abrirlo, él elegirá su propia contraseña.
           </p>
         </div>
       )}
@@ -370,7 +473,7 @@ function Users() {
       {ok && <div className="alert ok">{ok}</div>}
 
       <div className="alert ok" style={{ marginBottom: '1rem' }}>
-        💡 <strong>Recomendado:</strong> para nuevos clientes, usa el <strong>Panel admin</strong> y envía un código de invitación. El usuario elegirá su propia contraseña.
+        💡 <strong>Recomendado:</strong> para nuevos clientes, usa el <strong>Panel admin</strong> y envía un código de invitación.
       </div>
 
       {showManual && (
@@ -426,7 +529,7 @@ function Restaurants() {
   useEffect(() => { load(); }, []);
   const submit = async (e) => {
     e.preventDefault(); setError(''); setOk('');
-    try { await api('/restaurants', { method: 'POST', body: JSON.stringify(form) }); setOk('Restaurante creado'); setForm({ name: '', plan: 'basic', industry: 'food' }); load(); }
+    try { await api('/restaurants', { method: 'POST', body: JSON.stringify(form) }); setOk('Empresa creada'); setForm({ name: '', plan: 'basic', industry: 'food' }); load(); }
     catch (err) { setError(err.message); }
   };
   const toggle = async (r) => {
@@ -533,17 +636,20 @@ function Dashboard() {
   );
 }
 
-/* ---------- PRODUCTOS ---------- */
+/* ---------- PRODUCTOS (con CSV) ---------- */
 function Products() {
   const { api } = useContext(AuthCtx);
   const [items, setItems] = useState(null);
   const [editing, setEditing] = useState(null);
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
   const emptyForm = { name: '', sku: '', barcode: '', unit: 'kg', purchase_price: 0, stock_min: 0, location: '', description: '', custom_attributes: {} };
   const [form, setForm] = useState(emptyForm);
   const load = () => api('/products').then(setItems).catch(e => setError(e.message));
   useEffect(() => { load(); }, []);
+
   const submit = async (e) => {
     e.preventDefault(); setError(''); setOk('');
     try {
@@ -553,21 +659,65 @@ function Products() {
       setEditing(null); setForm(emptyForm); setOk('Producto guardado'); load();
     } catch (err) { setError(err.message); }
   };
+
   const edit = (p) => {
     setEditing(p.id);
     setForm({ name: p.name, sku: p.sku||'', barcode: p.barcode||'', unit: p.unit, purchase_price: Number(p.purchase_price), stock_min: Number(p.stock_min), location: p.location||'', description: p.description||'', custom_attributes: p.custom_attributes||{} });
   };
+
   const del = async (id) => {
     if (!window.confirm('¿Eliminar este producto?')) return;
     setError(''); setOk('');
     try { await api(`/products/${id}`, { method: 'DELETE' }); load(); }
     catch (err) { setError(err.message); }
   };
+
+  const importCSV = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setError(''); setOk(''); setImportResult(null); setImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(`${API}/products/import`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al importar');
+      setImportResult(data);
+      setOk(`Importados ${data.imported} productos. ${data.errors} errores.`);
+      load();
+    } catch (err) { setError(err.message); }
+    finally { setImporting(false); e.target.value = ''; }
+  };
+
   return (
     <div>
-      <div className="page-header"><div><h2>Productos</h2><div className="page-header-sub">{items?.length ?? '…'} artículos registrados</div></div></div>
+      <div className="page-header">
+        <div>
+          <h2>Productos</h2>
+          <div className="page-header-sub">{items?.length ?? '…'} artículos registrados</div>
+        </div>
+        <label className="btn-secondary" style={{ cursor: 'pointer' }}>
+          {importing ? 'Importando…' : '📥 Importar CSV'}
+          <input type="file" accept=".csv" onChange={importCSV} style={{ display: 'none' }} />
+        </label>
+      </div>
       {error && <div className="alert error">{error}</div>}
       {ok && <div className="alert ok">{ok}</div>}
+      {importResult && importResult.details && importResult.details.length > 0 && (
+        <div className="alert error">
+          <strong>{importResult.errors} errores:</strong>
+          <ul style={{ marginTop: 8, fontSize: '.8rem' }}>
+            {importResult.details.slice(0, 10).map((d, i) => (
+              <li key={i}>{d.name || 'Fila'}: {d.error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <form className="form-inline" onSubmit={submit}>
         <input placeholder="Nombre" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
         <input placeholder="SKU" value={form.sku} onChange={e => setForm({ ...form, sku: e.target.value })} />
@@ -581,7 +731,7 @@ function Products() {
         <button type="submit" className="btn-primary">{editing ? 'Guardar' : 'Añadir'}</button>
         {editing && <button type="button" className="btn-secondary" onClick={() => { setEditing(null); setForm(emptyForm); }}>Cancelar</button>}
       </form>
-      {items === null ? <Skeleton lines={5} /> : items.length === 0 ? <Empty icon="📦" title="Sin productos" desc="Añade tu primer producto con el formulario de arriba." /> : (
+      {items === null ? <Skeleton lines={5} /> : items.length === 0 ? <Empty icon="📦" title="Sin productos" desc="Añade tu primer producto o importa un CSV." /> : (
         <div className="table-wrap">
           <table className="table">
             <thead><tr><th>Producto</th><th>SKU</th><th>Stock</th><th>Mín</th><th>Precio</th><th>Ubicación</th><th></th></tr></thead>
@@ -1065,6 +1215,83 @@ function Reports() {
   );
 }
 
+/* ---------- MI PLAN (BILLING) ---------- */
+function Billing() {
+  const { api } = useContext(AuthCtx);
+  const [restaurant, setRestaurant] = useState(null);
+  const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    api('/my-restaurant').then(setRestaurant).catch(e => setError(e.message));
+  }, []);
+
+  const upgrade = async (plan) => {
+    setMsg(''); setError(''); setLoading(true);
+    try {
+      const res = await api('/billing/checkout', { method: 'POST', body: JSON.stringify({ plan }) });
+      if (res.url) window.location.href = res.url;
+      else { setMsg(res.message || 'Plan activado'); api('/my-restaurant').then(setRestaurant); }
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  };
+
+  if (error) return <div className="alert error">{error}</div>;
+  if (!restaurant) return <SkeletonCards n={3} />;
+
+  const plans = [
+    { id: 'basic', name: 'Básico', desc: 'Pequeños negocios', price: '19 €/mes' },
+    { id: 'pro', name: 'Profesional', desc: 'Negocios en crecimiento', price: '39 €/mes' },
+    { id: 'enterprise', name: 'Empresarial', desc: 'Cadenas y grupos', price: '99 €/mes' },
+  ];
+
+  return (
+    <div>
+      <div className="page-header"><div><h2>Mi plan</h2><div className="page-header-sub">Suscripción y facturación</div></div></div>
+      {msg && <div className="alert ok">{msg}</div>}
+
+      <div className="cards" style={{ marginBottom: '2rem' }}>
+        <div className="card blue">
+          <div className="card-icon">💼</div>
+          <div className="card-value" style={{ textTransform: 'capitalize' }}>{restaurant.plan}</div>
+          <div className="card-label">Plan actual</div>
+        </div>
+        <div className={`card ${restaurant.subscription_status === 'active' ? 'green' : restaurant.subscription_status === 'trial' ? 'orange' : 'red'}`}>
+          <div className="card-icon">✅</div>
+          <div className="card-value" style={{ textTransform: 'capitalize' }}>{restaurant.subscription_status}</div>
+          <div className="card-label">Estado</div>
+        </div>
+        <div className="card">
+          <div className="card-icon">🏢</div>
+          <div className="card-value" style={{ fontSize: '1.2rem' }}>{restaurant.name}</div>
+          <div className="card-label">Empresa</div>
+        </div>
+      </div>
+
+      <h3 style={{ margin: '24px 0 12px' }}>Cambiar de plan</h3>
+      <div className="cards">
+        {plans.map(p => (
+          <div key={p.id} className="card">
+            <div className="card-icon">💳</div>
+            <div className="card-value" style={{ fontSize: '1.4rem' }}>{p.name}</div>
+            <div className="card-label">{p.desc}</div>
+            <div style={{ margin: '12px 0', fontSize: '1.2rem', fontWeight: 700 }}>{p.price}</div>
+            <button
+              className={restaurant.plan === p.id ? 'btn-secondary' : 'btn-primary'}
+              style={{ width: '100%', marginTop: 8 }}
+              disabled={restaurant.plan === p.id || loading}
+              onClick={() => upgrade(p.id)}
+            >
+              {restaurant.plan === p.id ? 'Plan actual' : 'Elegir'}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- LAYOUT ---------- */
 const ALL_PAGES = {
   dashboard: { label: 'Dashboard', icon: '📊', comp: Dashboard, roles: ['admin','manager','warehouse','kitchen'] },
@@ -1080,6 +1307,7 @@ const ALL_PAGES = {
   sales: { label: 'Ventas', icon: '💰', comp: Sales, roles: ['admin','manager','kitchen'] },
   audit: { label: 'Auditoría', icon: '📝', comp: Audit, roles: ['admin','manager'] },
   reports: { label: 'Informes', icon: '📈', comp: Reports, roles: ['admin','manager'] },
+  billing: { label: 'Mi plan', icon: '💳', comp: Billing, roles: ['admin'] },
 };
 
 function Layout({ onLogout }) {
@@ -1097,7 +1325,6 @@ function Layout({ onLogout }) {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // Atajo Ctrl+K para buscar
   useEffect(() => {
     const onKey = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -1229,21 +1456,22 @@ export default function App() {
   const tokenRef = useRef(null);
   const api = useApi(tokenRef, setSession);
 
-  // SIN refresh automático: cada vez que se entra en la web, se pasa por login.
-  // El usuario solo entra al dashboard tras hacer login manualmente.
-
   const login = (data) => {
     tokenRef.current = data.token;
+    localStorage.setItem('token', data.token);
     setSession({ token: data.token, user: data.user });
   };
   const logout = async () => {
     try { await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' }); } catch {}
     tokenRef.current = null;
+    localStorage.removeItem('token');
     setSession(null);
   };
 
   const path = window.location.pathname;
   if (path === '/register') return <Register onLogin={login} />;
+  if (path === '/forgot-password') return <ForgotPassword />;
+  if (path === '/reset-password') return <ResetPassword />;
 
   if (!session) return <Login onLogin={login} />;
   return (
